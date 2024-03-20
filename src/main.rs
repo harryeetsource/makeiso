@@ -1,9 +1,9 @@
 extern crate winapi;
 
 use std::fs::File;
-use std::io::{self, Write};
+use std::io::{self, Write, stdin};
 use std::os::windows::ffi::OsStrExt;
-use std::ptr::{null, null_mut};
+use std::ptr::null_mut;
 use winapi::shared::minwindef::{DWORD, FALSE, LPVOID};
 use winapi::um::fileapi::{CreateFileW, OPEN_EXISTING};
 use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
@@ -12,13 +12,26 @@ use winapi::um::winioctl::{ DISK_GEOMETRY, IOCTL_DISK_GET_DRIVE_GEOMETRY};
 use winapi::um::winnt::{FILE_SHARE_READ, GENERIC_READ};
 use winapi::um::fileapi::ReadFile;
 fn main() -> io::Result<()> {
+    // Prompt the user for a drive letter
+    println!("Enter the drive letter (e.g., E):");
+    let mut drive_letter = String::new();
+    stdin().read_line(&mut drive_letter)
+        .expect("Failed to read line");
+
+    // Trim the input and format it into the physical drive path syntax
+    let drive_letter = drive_letter.trim().to_uppercase();
+    if drive_letter.len() != 1 || !drive_letter.chars().next().unwrap().is_alphabetic() {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid drive letter"));
+    }
+    let drive_path = format!(r#"\\.\{}:"# , drive_letter);
+    let drive_path_wide: Vec<u16> = std::ffi::OsStr::new(&drive_path)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+
     unsafe {
         let disk_handle = CreateFileW(
-            std::ffi::OsStr::new("\\\\.\\E:")
-                .encode_wide()
-                .chain(std::iter::once(0))
-                .collect::<Vec<u16>>()
-                .as_ptr(),
+            drive_path_wide.as_ptr(),
             GENERIC_READ,
             FILE_SHARE_READ,
             null_mut(),
