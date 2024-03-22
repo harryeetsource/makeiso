@@ -67,7 +67,11 @@ fn main() -> io::Result<()> {
             * disk_geometry.BytesPerSector as i64;
 
         let mut iso_file = File::create("output.iso")?;
-        let mut buffer = vec![0u8; 512 * 1024]; // 256 KB buffer
+    // Dynamically determine buffer size based on the sector size
+        let sector_size = disk_geometry.BytesPerSector as usize;
+    // Example: Setting the buffer size to be 1024 times the sector size
+        let buffer_size = sector_size * 1024;
+        let mut buffer = vec![0u8; buffer_size];
         let mut bytes_read: DWORD = 0;
         let mut total_bytes_read: i64 = 0;
 
