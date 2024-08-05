@@ -1,16 +1,14 @@
-extern crate winapi;
-
 use std::fs::File;
 use std::io::{self, Write, stdin};
 use std::os::windows::ffi::OsStrExt;
 use std::ptr::null_mut;
-use winapi::shared::minwindef::{DWORD, FALSE, LPVOID};
-use winapi::um::fileapi::{CreateFileW, OPEN_EXISTING};
-use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
-use winapi::um::ioapiset::DeviceIoControl;
-use winapi::um::winioctl::{ DISK_GEOMETRY, IOCTL_DISK_GET_DRIVE_GEOMETRY};
-use winapi::um::winnt::{FILE_SHARE_READ, GENERIC_READ};
-use winapi::um::fileapi::ReadFile;
+use windows::core::PCWSTR;
+use windows::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE, GENERIC_READ, HANDLE};
+use windows::Win32::Storage::FileSystem::{CreateFileW, ReadFile, FILE_SHARE_READ, OPEN_EXISTING, FILE_FLAGS_AND_ATTRIBUTES};
+use windows::Win32::System::Ioctl::{IOCTL_DISK_GET_DRIVE_GEOMETRY, DISK_GEOMETRY};
+use windows::Win32::System::IO::DeviceIoControl;
+
+
 fn main() -> io::Result<()> {
     // Prompt the user for a drive letter
     println!("Enter the drive letter (e.g., E):");
@@ -28,65 +26,61 @@ fn main() -> io::Result<()> {
         .encode_wide()
         .chain(std::iter::once(0))
         .collect();
+    let drive_path_pcwstr = PCWSTR(drive_path_wide.as_ptr());
 
     unsafe {
         let disk_handle = CreateFileW(
-            drive_path_wide.as_ptr(),
-            GENERIC_READ,
+            drive_path_pcwstr,
+            GENERIC_READ.0,
             FILE_SHARE_READ,
-            null_mut(),
+            None,
             OPEN_EXISTING,
-            0,
-            null_mut(),
-        );
+            FILE_FLAGS_AND_ATTRIBUTES(0),
+            HANDLE(0 as *mut _),
+        ).unwrap();
 
         if disk_handle == INVALID_HANDLE_VALUE {
             return Err(io::Error::last_os_error());
         }
 
         let mut disk_geometry: DISK_GEOMETRY = std::mem::zeroed();
-        let mut returned_bytes: DWORD = 0;
+        let mut returned_bytes: u32 = 0;
 
         if DeviceIoControl(
             disk_handle,
             IOCTL_DISK_GET_DRIVE_GEOMETRY,
-            null_mut(),
+            None,
             0,
-            &mut disk_geometry as *mut _ as LPVOID,
-            std::mem::size_of::<DISK_GEOMETRY>() as DWORD,
-            &mut returned_bytes,
-            null_mut(),
-        ) == FALSE
+            Some(&mut disk_geometry as *mut _ as *mut _),
+            std::mem::size_of::<DISK_GEOMETRY>() as u32,
+            Some(&mut returned_bytes as *mut _ as *mut _),
+            None,
+        ).is_err()
         {
             return Err(io::Error::last_os_error());
         }
 
-        let total_size = disk_geometry.Cylinders.QuadPart()
+        let total_size = disk_geometry.Cylinders
             * disk_geometry.TracksPerCylinder as i64
             * disk_geometry.SectorsPerTrack as i64
             * disk_geometry.BytesPerSector as i64;
 
         let mut iso_file = File::create("output.iso")?;
-    // Dynamically determine buffer size based on the sector size
+        // Dynamically determine buffer size based on the sector size
         let sector_size = disk_geometry.BytesPerSector as usize;
-    // Example: Setting the buffer size to be 1024 times the sector size
+        // Example: Setting the buffer size to be 1024 times the sector size
         let buffer_size = sector_size * 1024;
         let mut buffer = vec![0u8; buffer_size];
-        let mut bytes_read: DWORD = 0;
+        let mut bytes_read: u32 = 0;
         let mut total_bytes_read: i64 = 0;
 
         while {
             let result = ReadFile(
                 disk_handle,
-                buffer.as_mut_ptr() as _,
-                buffer.len() as u32,
-                &mut bytes_read,
-                null_mut(),
-            );
-
-            if result == FALSE {
-                return Err(io::Error::last_os_error());
-            }
+                Some(&mut buffer),
+                Some(&mut bytes_read),
+                None,
+            ).unwrap();
 
             bytes_read > 0
         } {
@@ -95,7 +89,7 @@ fn main() -> io::Result<()> {
             println!("Progress: {:.2}%", (total_bytes_read as f64 / total_size as f64) * 100.0);
         }
 
-        CloseHandle(disk_handle);
+        CloseHandle(disk_handle).unwrap();
     }
 
     Ok(())
