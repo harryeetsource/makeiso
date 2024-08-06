@@ -74,22 +74,28 @@ fn main() -> io::Result<()> {
         let mut bytes_read: u32 = 0;
         let mut total_bytes_read: i64 = 0;
 
-        while {
-            let result = ReadFile(
+        while total_bytes_read < total_size {
+            let _result = ReadFile(
                 disk_handle,
                 Some(&mut buffer),
                 Some(&mut bytes_read),
                 None,
             ).unwrap();
 
-            bytes_read > 0
-        } {
+            if bytes_read == 0 {
+                break;
+            }
+
             iso_file.write_all(&buffer[..bytes_read as usize])?;
             total_bytes_read += bytes_read as i64;
-            println!("Progress: {:.2}%", (total_bytes_read as f64 / total_size as f64) * 100.0);
+
+            // Ensure progress doesn't exceed 100%
+            let progress = (total_bytes_read.min(total_size) as f64 / total_size as f64) * 100.0;
+            println!("Progress: {:.2}%", progress);
         }
 
         // Close the file explicitly
+        iso_file.flush()?;
         drop(iso_file);
 
         CloseHandle(disk_handle).unwrap();
