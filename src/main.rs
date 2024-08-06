@@ -8,7 +8,7 @@ use windows::Win32::Storage::FileSystem::{CreateFileW, ReadFile, FILE_SHARE_READ
 use windows::Win32::System::Ioctl::{IOCTL_DISK_GET_DRIVE_GEOMETRY, DISK_GEOMETRY};
 use windows::Win32::System::IO::DeviceIoControl;
 use std::fs::rename;
-
+use core::time::Duration;
 fn main() -> io::Result<()> {
     // Prompt the user for a drive letter
     println!("Enter the drive letter (e.g., E):");
@@ -94,16 +94,18 @@ fn main() -> io::Result<()> {
             println!("Progress: {:.2}%", progress);
         }
 
-        // Close the file explicitly
+        // Flush and close the file explicitly
         iso_file.flush()?;
         drop(iso_file);
 
         CloseHandle(disk_handle).unwrap();
     }
 
+    // Add a short delay to ensure the system releases the file handle
+    std::thread::sleep(Duration::from_secs(1));
+
     // Rename the file after it is closed
     rename("output.iso", "new_output.iso")?;
 
     Ok(())
 }
-
