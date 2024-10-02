@@ -30,11 +30,13 @@ fn write_primary_volume_descriptor<W: Write>(writer: &mut W, total_blocks: u32) 
     // Set the version number (1)
     volume_descriptor[6] = 1;
 
-    // Set system identifier (can be 32 characters, padded with spaces)
-    volume_descriptor[8..40].copy_from_slice(b"RUST_SYSTEM_GENERATED         ");
+    // Set system identifier (32 characters, padded with spaces)
+    let system_identifier = b"RUST_SYSTEM_GENERATED           "; // Ensure it's 32 characters
+    volume_descriptor[8..40].copy_from_slice(system_identifier);
 
-    // Set volume identifier (can be 32 characters, padded with spaces)
-    volume_descriptor[40..72].copy_from_slice(b"RUST_ISO_VOLUME               ");
+    // Set volume identifier (32 characters, padded with spaces)
+    let volume_identifier = b"RUST_ISO_VOLUME                 "; // Ensure it's 32 characters
+    volume_descriptor[40..72].copy_from_slice(volume_identifier);
 
     // Volume space size (in logical blocks, which are 2048 bytes each)
     volume_descriptor[80..84].copy_from_slice(&total_blocks.to_le_bytes());
